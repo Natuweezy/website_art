@@ -163,18 +163,65 @@
         return true;
       };
 
-      if (!slug) return showError('Missing artist slug in the URL.');
       if (!window.supabase) return showError('Supabase not available.');
 
-      const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      const STORAGE_KEY = "sb-jhzlxmomyypgtkuwdvzn-auth-token";
+      function pickAuthStorage() {
+        try {
+          const k = "sb-check";
+          localStorage.setItem(k, "1");
+          localStorage.removeItem(k);
+          return localStorage;
+        } catch (_) {}
+        try {
+          const k = "sb-check";
+          sessionStorage.setItem(k, "1");
+          sessionStorage.removeItem(k);
+          return sessionStorage;
+        } catch (_) {}
+        return undefined;
+      }
+
+      const supa = window.supabase.createClient(
+        window.SUPABASE_URL,
+        window.SUPABASE_ANON_KEY,
+        { auth: { storageKey: STORAGE_KEY, storage: pickAuthStorage(), autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } }
+      );
+
+      let slugToLoad = slug;
+      const { data: { session } } = await supa.auth.getSession();
+      let isSelf = false;
+      if (session?.user) {
+        const { data: selfArtist } = await supa
+          .from('artists')
+          .select('id,slug')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        if (selfArtist?.slug) {
+          isSelf = true;
+          if (slug && slug !== selfArtist.slug) {
+            location.replace(`./biopage.html?slug=${encodeURIComponent(selfArtist.slug)}`);
+            return;
+          }
+          slugToLoad = selfArtist.slug;
+        } else if (!slug) {
+          return showError('No artist profile is linked to this account.');
+        }
+      } else if (!slug) {
+        return showError('Missing artist slug in the URL.');
+      }
 
       // ✅ Pull highlights + socials from DB
-      const { data: artist, error } = await supa
+      let artistQuery = supa
         .from('artists')
-        .select('id,name,slug,bio,country,region_sub,gender,is_published,exhibitions,residencies,press,instagram,tiktok,website')
-        .eq('slug', slug)
-        .eq('is_published', true)
-        .maybeSingle();
+        .select('id,name,slug,bio,country,region_sub,gender,is_published,exhibitions,residencies,press,instagram,tiktok,website');
+      if (isSelf && session?.user) {
+        artistQuery = artistQuery.eq('user_id', session.user.id);
+      } else {
+        artistQuery = artistQuery.eq('slug', slugToLoad).eq('is_published', true);
+      }
+
+      const { data: artist, error } = await artistQuery.maybeSingle();
 
       if (error) return showError('Error loading artist: ' + error.message);
       if (!artist) return showError('Artist not found or unpublished.');

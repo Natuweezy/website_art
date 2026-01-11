@@ -137,6 +137,12 @@
       <input id="artistSlug" placeholder="Slug (optional; auto from name)" />
     </div>
 
+    <div class="row">
+      <input id="artistAuthEmail" type="email" placeholder="Artist login email (optional)" autocomplete="off" />
+      <input id="artistAuthPassword" type="password" placeholder="Temporary password (optional)" autocomplete="new-password" />
+    </div>
+    <div class="muted">If set, this creates/links the artist’s login without storing the password.</div>
+
     <textarea id="artistBio" rows="4" placeholder="Bio"></textarea>
 
     <div class="row3">
@@ -361,6 +367,24 @@
     { auth: { storageKey: STORAGE_KEY, storage: pickAuthStorage(), autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } }
   );
   const ARTWORKS_BUCKET = window.ARTWORKS_BUCKET || 'artworks';
+  const EPHEMERAL_AUTH_KEY = `${STORAGE_KEY}-artist-provisioning`;
+
+  function createEphemeralAuthClient() {
+    // In-memory storage prevents clobbering the admin session.
+    const memory = (() => {
+      const data = new Map();
+      return {
+        getItem: (k) => (data.has(k) ? data.get(k) : null),
+        setItem: (k, v) => data.set(k, v),
+        removeItem: (k) => data.delete(k)
+      };
+    })();
+    return window.supabase.createClient(
+      window.SUPABASE_URL,
+      window.SUPABASE_ANON_KEY,
+      { auth: { storageKey: EPHEMERAL_AUTH_KEY, storage: memory, autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } }
+    );
+  }
 
   async function ensureSessionOrRedirect() {
     const { data: { session } } = await supa.auth.getSession();
@@ -468,6 +492,8 @@
   const artistInstagramEl   = document.getElementById('artistInstagram');
   const artistTiktokEl      = document.getElementById('artistTiktok');
   const artistWebsiteEl     = document.getElementById('artistWebsite');
+  const artistAuthEmailEl   = document.getElementById('artistAuthEmail');
+  const artistAuthPasswordEl = document.getElementById('artistAuthPassword');
 
   const artistSearch = document.getElementById('artistSearch');
   const prevArtists = document.getElementById('prevArtists');
@@ -516,6 +542,8 @@
     artistInstagramEl.value   = row.instagram || '';
     artistTiktokEl.value      = row.tiktok || '';
     artistWebsiteEl.value     = row.website || '';
+    artistAuthEmailEl.value   = '';
+    artistAuthPasswordEl.value = '';
 
     artistMode.textContent = 'Mode: Edit';
     artistSaveBtn.textContent = 'Update artist';
@@ -530,11 +558,54 @@
     const name = nameEl.value.trim();
     if (!name) return;
     const slug = (slugEl.value.trim() || slugify(name));
+    const authEmail = (artistAuthEmailEl.value || '').trim();
+    const authPassword = artistAuthPasswordEl.value || '';
 
     try {
       artistSaveBtn.disabled = true;
       setStatus(artistOut, 'Checking auth…');
       await requireAuth();
+
+      let linkedUserId = null;
+      if (authEmail || authPassword) {
+        if (!authEmail || !authPassword) {
+          throw new Error('Provide both artist email and password to create a login.');
+        }
+
+        setStatus(artistOut, 'Creating artist login…');
+        const authClient = createEphemeralAuthClient();
+        let userId = null;
+
+        const { data: signUpData, error: signUpErr } = await authClient.auth.signUp({
+          email: authEmail,
+          password: authPassword
+        });
+
+        if (signUpErr) {
+          const msg = (signUpErr.message || '').toLowerCase();
+          const already = msg.includes('already registered') || msg.includes('user already');
+          if (already) {
+            const { data: signInData, error: signInErr } = await authClient.auth.signInWithPassword({
+              email: authEmail,
+              password: authPassword
+            });
+            if (signInErr) throw signInErr;
+            userId = signInData?.user?.id || null;
+          } else {
+            throw signUpErr;
+          }
+        } else {
+          userId = signUpData?.user?.id || null;
+        }
+
+        if (!userId) {
+          throw new Error('Unable to resolve artist user id. Check email confirmation settings.');
+        }
+
+        linkedUserId = userId;
+        await authClient.auth.signOut();
+        artistAuthPasswordEl.value = '';
+      }
 
       const payload = {
         name,
@@ -562,6 +633,7 @@
         tiktok:      (artistTiktokEl.value || '').trim() || null,
         website:     (artistWebsiteEl.value || '').trim() || null
       };
+      if (linkedUserId) payload.user_id = linkedUserId;
 
       if(artistIdEl.value){
         setStatus(artistOut, 'Updating artist row…');

@@ -88,10 +88,24 @@ loginForm?.addEventListener("submit", async (e) => {
     if (error) throw error;
 
     // Ensure session is written before navigating
-    await supaClient.auth.getSession();
+    const { data: { session } } = await supaClient.auth.getSession();
 
-    // Success → redirect (relative path)
-    window.location.href = "../search_page/search_bar.html";
+    let artistSlug = null;
+    if (session?.user) {
+      const { data: artistRow } = await supaClient
+        .from("artists")
+        .select("slug")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      artistSlug = artistRow?.slug || null;
+    }
+
+    // Success → redirect (artists go to their own bio)
+    if (artistSlug) {
+      window.location.href = `../biopage/biopage.html?slug=${encodeURIComponent(artistSlug)}`;
+    } else {
+      window.location.href = "../search_page/search_bar.html";
+    }
   } catch (err) {
     console.error("Login error:", err);
     showError(friendly(err));
