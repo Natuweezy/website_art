@@ -21,7 +21,7 @@
 </head>
 <body>
   <div class="artist_page-wrapper" id="artistRoot">
-    <a href="../search_page/search_bar.html" class="back-btn" aria-label="Back to search page">‹</a>
+    <a href="../search_page/search_bar.html" class="back-btn" id="backBtn" aria-label="Back to search page">‹</a>
 
     <header class="artist-header">
       <div class="artist-header-main">
@@ -90,10 +90,26 @@
       // 0) slug from URL
       const params = new URLSearchParams(location.search);
       const slug = params.get('slug');
+      const backBtn = document.getElementById('backBtn');
+      let isLocked = false;
       if (!slug) return showError('Missing artist slug in the URL.');
 
       if (!window.supabase) return showError('Supabase JS not loaded.');
       const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+      function lockNavigation() {
+        if (isLocked) return;
+        isLocked = true;
+        if (backBtn) backBtn.style.display = 'none';
+        history.replaceState({ locked: true }, '', location.href);
+        history.pushState({ locked: true }, '', location.href);
+        window.addEventListener('popstate', () => {
+          history.pushState({ locked: true }, '', location.href);
+        });
+      }
+
+      const { data: { session } } = await supa.auth.getSession();
+      const sessionUserId = session?.user?.id || null;
 
       // === theme toggle ===
       const themeBtn = document.getElementById("themeToggle");
@@ -126,13 +142,17 @@
       // 1) Fetch the published artist by slug
       const { data: artist, error: artistErr } = await supa
         .from('artists')
-        .select('id,name,slug,bio,country,region_sub,gender,is_published')
+        .select('id,user_id,name,slug,bio,country,region_sub,gender,is_published')
         .eq('slug', slug)
         .eq('is_published', true)
         .maybeSingle();
 
       if (artistErr) return showError('Error loading artist: ' + artistErr.message);
       if (!artist)   return showError('Artist not found or unpublished.');
+
+      if (sessionUserId && artist.user_id === sessionUserId) {
+        lockNavigation();
+      }
 
       document.title = `${artist.name} — Artist`;
       document.getElementById('artistName').textContent = artist.name || '';
@@ -160,12 +180,7 @@
         if (!favBtn) return;
 
         // Get auth session (if any)
-        try {
-          const { data: { session } } = await supa.auth.getSession();
-          if (session?.user) currentUserId = session.user.id;
-        } catch (err) {
-          console.warn("Auth session error:", err);
-        }
+        if (sessionUserId) currentUserId = sessionUserId;
 
         // Check if this artist is already a favorite
         if (currentUserId) {

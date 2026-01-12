@@ -245,7 +245,8 @@
       // If none exist, hide the whole social row
       if (!anySocial) socialNav.style.display = 'none';
 
-      galleryLink.href = `../artist_page/artist_page.html?slug=${encodeURIComponent(artist.slug)}`;
+      const selfParam = isSelf ? '&self=1' : '';
+      galleryLink.href = `../artist_page/artist_page.html?slug=${encodeURIComponent(artist.slug)}${selfParam}`;
       galleryLink.setAttribute('aria-label', `View gallery for ${artist.name}`);
 
       const { data: works, error: worksErr } = await supa
