@@ -29,16 +29,62 @@ const emailInput = document.getElementById("loginEmail");
 const passwordInput = document.getElementById("loginPassword");
 const loginBtn = document.getElementById("loginBtn");
 
-// Avoid clobbering the global "supabase" provided by the CDN
-const supaClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storageKey: STORAGE_KEY,
-    storage: pickAuthStorage(),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-}) || null;
+let supaClient = null;
+let supaLoading = null;
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (window.supabase?.createClient) return resolve();
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("Script load failed.")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Script load failed."));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureSupabase() {
+  if (window.supabase?.createClient) return window.supabase;
+  if (!supaLoading) {
+    const sources = [
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+      "https://unpkg.com/@supabase/supabase-js@2",
+    ];
+    supaLoading = (async () => {
+      for (const src of sources) {
+        try {
+          await loadScript(src);
+          if (window.supabase?.createClient) return window.supabase;
+        } catch (_) {}
+      }
+      return null;
+    })();
+  }
+  return supaLoading;
+}
+
+async function getSupabaseClient() {
+  if (supaClient) return supaClient;
+  const supa = await ensureSupabase();
+  if (!supa?.createClient) return null;
+  supaClient = supa.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      storageKey: STORAGE_KEY,
+      storage: pickAuthStorage(),
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+    },
+  });
+  return supaClient;
+}
 
 function showError(msg) {
   if (errEl) errEl.textContent = msg || "";
@@ -68,11 +114,6 @@ function withTimeout(promise, ms) {
 loginForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  if (!supaClient) {
-    showError("Unable to load the auth client. Check your connection and refresh.");
-    return;
-  }
-
   const creds = requireFields();
   if (!creds) return;
 
@@ -81,18 +122,24 @@ loginForm?.addEventListener("submit", async (e) => {
   loginBtn?.setAttribute("disabled", "true");
 
   try {
+    const client = await getSupabaseClient();
+    if (!client) {
+      showError("Unable to load the auth client. Check your connection and refresh.");
+      return;
+    }
+
     const { error } = await withTimeout(
-      supaClient.auth.signInWithPassword({ email, password }),
+      client.auth.signInWithPassword({ email, password }),
       LOGIN_TIMEOUT_MS
     );
     if (error) throw error;
 
     // Ensure session is written before navigating
-    const { data: { session } } = await supaClient.auth.getSession();
+    const { data: { session } } = await client.auth.getSession();
 
     let artistSlug = null;
     if (session?.user) {
-      const { data: artistRow } = await supaClient
+      const { data: artistRow } = await client
         .from("artists")
         .select("slug")
         .eq("user_id", session.user.id)
