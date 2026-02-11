@@ -103,13 +103,15 @@
     <header class="favorites-head">
       <div>
         <h1 class="page-title">
-          <img
-            src="../logos/KH gold.png"
-            alt="Khaya"
-            class="brand-logo"
-            decoding="async"
-            loading="eager"
-          />
+          <a href="../search_page/search_bar.html" aria-label="Back to search" class="logo-link" data-logo-link>
+            <img
+              src="../logos/KH gold.png"
+              alt="Khaya"
+              class="brand-logo"
+              decoding="async"
+              loading="eager"
+            />
+          </a>
         </h1>
         <p class="page-subtitle muted">Your saved artists.</p>
       </div>
@@ -123,7 +125,7 @@
           title="Toggle theme"
         >☀</button>
 
-        <a class="icon-button" href="../search_page/search_bar.html" aria-label="Back to search" title="Back to search">⌂</a>
+        <a class="icon-button" href="../search_page/search_bar.html" aria-label="Back to search" title="Back to search" data-home-link>⌂</a>
 
         <button id="favClear" class="fav-clear" type="button">Clear all</button>
       </div>
@@ -140,11 +142,43 @@
       const grid = document.getElementById("favGrid");
       const status = document.getElementById("favStatus");
       const clearBtn = document.getElementById("favClear");
+      const logoLink = document.querySelector("[data-logo-link]");
+      const homeLink = document.querySelector("[data-home-link]");
 
       const FAVORITES_KEY = "favorite_artists";
 
       let userId = null;
       let mode = "local"; // "account" (Supabase) or "local" (localStorage)
+
+      function disableLogoLink(linkEl) {
+        if (!linkEl) return;
+        linkEl.removeAttribute("href");
+        linkEl.setAttribute("aria-disabled", "true");
+        linkEl.setAttribute("tabindex", "-1");
+        linkEl.classList.add("is-disabled");
+        linkEl.addEventListener("click", (e) => e.preventDefault());
+      }
+
+      async function maybeDisableLogoForArtist() {
+        if (!logoLink) return;
+        try {
+          const { data: { session } } = await supa.auth.getSession();
+          if (!session?.user) return;
+          const { data: artistRow, error } = await supa
+            .from("artists")
+            .select("id,slug")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+          if (!error && artistRow) {
+            disableLogoLink(logoLink);
+            if (homeLink && artistRow.slug) {
+              homeLink.href = `../biopage/biopage.html?slug=${encodeURIComponent(artistRow.slug)}`;
+              homeLink.setAttribute("aria-label", "Back to your bio");
+              homeLink.setAttribute("title", "Back to your bio");
+            }
+          }
+        } catch (_) {}
+      }
 
       function loadFavoritesLocal() {
         try { return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || []; }
@@ -336,6 +370,7 @@
 
       userId = await detectSessionUser();
       mode = userId ? "account" : "local";
+      await maybeDisableLogoForArtist();
 
       const list = await loadFavorites();
       render(list);

@@ -154,6 +154,10 @@ body[data-theme="light"]{
   display: block;
   object-fit: contain;
 }
+.logo-link.is-disabled{
+  pointer-events: none;
+  cursor: default;
+}
 
 .page-subtitle{
   margin: 6px 0 0;
@@ -305,6 +309,9 @@ body[data-theme="light"] .icon-button:hover{ filter: brightness(1.02); }
   box-shadow: none;
 
   position: relative;
+}
+.filters.hidden{
+  display: none;
 }
 
 .filters::before{

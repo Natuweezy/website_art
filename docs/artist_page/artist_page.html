@@ -10,6 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="artist_page.css" />
+  <script defer src="../theme-toggle.js"></script>
 
   <!-- Supabase keys (same as search/admin) -->
   <script>
@@ -38,6 +39,7 @@
           id="themeToggle"
           class="icon-btn theme-toggle"
           type="button"
+          data-theme-toggle
           aria-pressed="false"
           title="Toggle light or dark mode"
         >☀</button>
@@ -75,7 +77,6 @@
     (async function () {
       const root = document.getElementById('artistRoot');
       const showError = (msg) => { root.innerHTML = `<p class="error">${msg}</p>`; };
-      const bodyEl = document.body;
 
       // Local favorites cache key (for logged-out users)
       const FAVORITES_KEY = "favorite_artists";
@@ -110,34 +111,6 @@
 
       const { data: { session } } = await supa.auth.getSession();
       const sessionUserId = session?.user?.id || null;
-
-      // === theme toggle ===
-      const themeBtn = document.getElementById("themeToggle");
-      const THEME_KEY = "artist_theme";
-
-      function applyTheme(mode) {
-        const theme = mode === "light" ? "light" : "dark";
-        bodyEl.dataset.theme = theme;
-        if (themeBtn) {
-          themeBtn.textContent = theme === "light" ? "☾" : "☀";
-          themeBtn.setAttribute("aria-pressed", theme === "light" ? "true" : "false");
-          themeBtn.setAttribute("aria-label", theme === "light" ? "Switch to dark mode" : "Switch to light mode");
-          themeBtn.title = theme === "light" ? "Switch to dark mode" : "Switch to light mode";
-        }
-      }
-
-      function initTheme() {
-        const stored = localStorage.getItem(THEME_KEY);
-        const prefersLight = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
-        const initial = stored || (prefersLight ? "light" : "dark");
-        applyTheme(initial);
-        themeBtn?.addEventListener("click", () => {
-          const next = bodyEl.dataset.theme === "light" ? "dark" : "light";
-          localStorage.setItem(THEME_KEY, next);
-          applyTheme(next);
-        });
-      }
-      initTheme();
 
       // 1) Fetch the published artist by slug
       const { data: artist, error: artistErr } = await supa

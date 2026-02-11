@@ -103,6 +103,30 @@ logoutBtn?.addEventListener("click", async () => {
   location.href = "../login_page/login.html";
 });
 
+function disableLogoLink(linkEl) {
+  if (!linkEl) return;
+  linkEl.removeAttribute("href");
+  linkEl.setAttribute("aria-disabled", "true");
+  linkEl.setAttribute("tabindex", "-1");
+  linkEl.classList.add("is-disabled");
+  linkEl.addEventListener("click", (e) => e.preventDefault());
+}
+
+async function maybeDisableLogoForArtist() {
+  const linkEl = document.querySelector("[data-logo-link]");
+  if (!linkEl) return;
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (!session?.user) return;
+    const { data: artistRow, error } = await supa
+      .from("artists")
+      .select("id")
+      .eq("user_id", session.user.id)
+      .maybeSingle();
+    if (!error && artistRow) disableLogoLink(linkEl);
+  } catch (_) {}
+}
+
 let page = 1;
 let lastQuery = "";
 
@@ -308,6 +332,7 @@ filtersToggle?.addEventListener("click", () => {
 (async function init() {
   const ok = await ensureSignedIn();
   if (!ok) return;
+  await maybeDisableLogoForArtist();
   resetCountrySelect();
   runSearch("", 1);
 })();

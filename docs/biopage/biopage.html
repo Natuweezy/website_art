@@ -29,7 +29,9 @@
     <header class="bio-head">
       <div class="bio-titleblock">
         <h1 class="page-title">
-          <img src="../logos/KH gold.png" alt="Khaya" class="brand-logo">
+          <a href="../search_page/search_bar.html" aria-label="Back to search" class="logo-link" data-logo-link>
+            <img src="../logos/KH gold.png" alt="Khaya" class="brand-logo">
+          </a>
         </h1>
 
         <h2 id="artistName" class="title">Loading artist…</h2>
@@ -105,6 +107,7 @@
       const statementEl = document.getElementById('artistStatement');
       const galleryLink = document.getElementById('artistGalleryLink');
       const worksEl = document.getElementById('works');
+      const logoLink = document.querySelector('[data-logo-link]');
 
       // Highlights values
       const exhibitionsVal = document.getElementById('exhibitionsVal');
@@ -116,6 +119,15 @@
       const tiktokLink = document.getElementById('tiktokLink');
       const instagramLink = document.getElementById('instagramLink');
       const websiteLink = document.getElementById('websiteLink');
+
+      function disableLogoLink(linkEl) {
+        if (!linkEl) return;
+        linkEl.removeAttribute('href');
+        linkEl.setAttribute('aria-disabled', 'true');
+        linkEl.setAttribute('tabindex', '-1');
+        linkEl.classList.add('is-disabled');
+        linkEl.addEventListener('click', (e) => e.preventDefault());
+      }
 
       const params = new URLSearchParams(location.search);
       const slug = params.get('slug');
@@ -198,6 +210,7 @@
           .eq('user_id', session.user.id)
           .maybeSingle();
         if (selfArtist?.slug) {
+          disableLogoLink(logoLink);
           isSelf = true;
           if (slug && slug !== selfArtist.slug) {
             location.replace(`./biopage.html?slug=${encodeURIComponent(selfArtist.slug)}`);
