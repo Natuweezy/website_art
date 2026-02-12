@@ -12,13 +12,7 @@
   <link rel="stylesheet" href="artist_page.css" />
   <script defer src="../theme-toggle.js"></script>
 
-  <!-- Supabase keys (same as search/admin) -->
-  <script>
-    window.SUPABASE_URL = 'https://jhzlxmomyypgtkuwdvzn.supabase.co';
-    window.SUPABASE_ANON_KEY =  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impoemx4bW9teXlwZ3RrdXdkdnpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzOTgzMzEsImV4cCI6MjA3Mzk3NDMzMX0.IZw6mlxn7Hbue5UlrckhPJeCDNplj-zM1zoiddQGnj0';
-  </script>
-  <!-- UMD build (NOT type="module") -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- API-backed pages (no client keys) -->
 </head>
 <body>
   <div class="artist_page-wrapper" id="artistRoot">
@@ -95,8 +89,7 @@
       let isLocked = false;
       if (!slug) return showError('Missing artist slug in the URL.');
 
-      if (!window.supabase) return showError('Supabase JS not loaded.');
-      const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+      const API_BASE = "/.netlify/functions";
 
       function lockNavigation() {
         if (isLocked) return;
@@ -109,23 +102,13 @@
         });
       }
 
-      const { data: { session } } = await supa.auth.getSession();
-      const sessionUserId = session?.user?.id || null;
-
       // 1) Fetch the published artist by slug
-      const { data: artist, error: artistErr } = await supa
-        .from('artists')
-        .select('id,user_id,name,slug,bio,country,region_sub,gender,is_published')
-        .eq('slug', slug)
-        .eq('is_published', true)
-        .maybeSingle();
-
-      if (artistErr) return showError('Error loading artist: ' + artistErr.message);
-      if (!artist)   return showError('Artist not found or unpublished.');
-
-      if (sessionUserId && artist.user_id === sessionUserId) {
-        lockNavigation();
-      }
+      const artistRes = await fetch(`${API_BASE}/artist-public?slug=${encodeURIComponent(slug)}`);
+      const artistData = await artistRes.json().catch(() => ({}));
+      if (!artistRes.ok) return showError(artistData.error || 'Error loading artist.');
+      const artist = artistData.artist;
+      if (!artist) return showError('Artist not found or unpublished.');
+      if (artistData.is_owner) lockNavigation();
 
       document.title = `${artist.name} — Artist`;
       document.getElementById('artistName').textContent = artist.name || '';
@@ -139,7 +122,7 @@
       // === favorites on artist page ===
       const favBtn = document.getElementById('favoriteBtn');
       let isFavorite = false;
-      let currentUserId = null;
+      let accountMode = false;
 
       function syncFavButton() {
         if (!favBtn) return;
@@ -152,23 +135,12 @@
       async function initFavorite() {
         if (!favBtn) return;
 
-        // Get auth session (if any)
-        if (sessionUserId) currentUserId = sessionUserId;
-
-        // Check if this artist is already a favorite
-        if (currentUserId) {
-          const { data, error } = await supa
-            .from("favorites")
-            .select("artist_id")
-            .eq("user_id", currentUserId)
-            .eq("artist_id", artist.id)
-            .maybeSingle();
-
-          if (!error && data?.artist_id) {
-            isFavorite = true;
-          }
+        const res = await fetch(`${API_BASE}/favorites-status?artist_id=${encodeURIComponent(artist.id)}`);
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          accountMode = true;
+          isFavorite = !!data.is_favorite;
         } else {
-          // Fallback: local only
           const local = loadFavoritesLocal();
           isFavorite = local.some((f) => f.id === artist.id);
         }
@@ -176,21 +148,14 @@
         syncFavButton();
 
         favBtn.addEventListener("click", async () => {
-          // If logged in, persist to Supabase
-          if (currentUserId) {
-            if (isFavorite) {
-              const { error } = await supa
-                .from("favorites")
-                .delete()
-                .eq("user_id", currentUserId)
-                .eq("artist_id", artist.id);
-              if (!error) isFavorite = false;
-            } else {
-              const { error } = await supa
-                .from("favorites")
-                .insert({ user_id: currentUserId, artist_id: artist.id });
-              if (!error) isFavorite = true;
-            }
+          if (accountMode) {
+            const endpoint = isFavorite ? "favorites-remove" : "favorites-add";
+            const res = await fetch(`${API_BASE}/${endpoint}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ artist_id: artist.id })
+            });
+            if (res.ok) isFavorite = !isFavorite;
           } else {
             // No auth: store favorites locally so UI still works
             const local = loadFavoritesLocal();
@@ -215,14 +180,10 @@
       await initFavorite();
 
       // 2) Fetch this artist's published artworks
-      const { data: arts, error: artsErr } = await supa
-        .from('artworks')
-        .select('id,title,description,image_url,year,is_published,created_at')
-        .eq('artist_id', artist.id)
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
-
-      if (artsErr) console.warn('Artworks error:', artsErr.message);
+      const artsRes = await fetch(`${API_BASE}/artist-works?artist_id=${encodeURIComponent(artist.id)}`);
+      const artsData = await artsRes.json().catch(() => ({}));
+      if (!artsRes.ok) console.warn('Artworks error:', artsData.error || 'unknown');
+      const arts = artsData.artworks || [];
 
       // 3) Render slides
       const track = document.getElementById('track');

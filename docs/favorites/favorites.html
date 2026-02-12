@@ -89,11 +89,6 @@
     }
   </style>
 
-  <script>
-    window.SUPABASE_URL = 'https://jhzlxmomyypgtkuwdvzn.supabase.co';
-    window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impoemx4bW9teXlwZ3RrdXdkdnpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzOTgzMzEsImV4cCI6MjA3Mzk3NDMzMX0.IZw6mlxn7Hbue5UlrckhPJeCDNplj-zM1zoiddQGnj0';
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -138,12 +133,12 @@
   <script defer src="../theme-toggle.js"></script>
   <script>
     (async function() {
-      const supa = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
       const grid = document.getElementById("favGrid");
       const status = document.getElementById("favStatus");
       const clearBtn = document.getElementById("favClear");
       const logoLink = document.querySelector("[data-logo-link]");
       const homeLink = document.querySelector("[data-home-link]");
+      const API_BASE = "/.netlify/functions";
 
       const FAVORITES_KEY = "favorite_artists";
 
@@ -162,17 +157,12 @@
       async function maybeDisableLogoForArtist() {
         if (!logoLink) return;
         try {
-          const { data: { session } } = await supa.auth.getSession();
-          if (!session?.user) return;
-          const { data: artistRow, error } = await supa
-            .from("artists")
-            .select("id,slug")
-            .eq("user_id", session.user.id)
-            .maybeSingle();
-          if (!error && artistRow) {
+          const res = await fetch(`${API_BASE}/auth-session`);
+          const data = await res.json();
+          if (data?.artist_slug) {
             disableLogoLink(logoLink);
-            if (homeLink && artistRow.slug) {
-              homeLink.href = `../biopage/biopage.html?slug=${encodeURIComponent(artistRow.slug)}`;
+            if (homeLink) {
+              homeLink.href = `../biopage/biopage.html?slug=${encodeURIComponent(data.artist_slug)}`;
               homeLink.setAttribute("aria-label", "Back to your bio");
               homeLink.setAttribute("title", "Back to your bio");
             }
@@ -190,8 +180,9 @@
 
       async function detectSessionUser() {
         try {
-          const { data: { session } } = await supa.auth.getSession();
-          return session?.user?.id || null;
+          const res = await fetch(`${API_BASE}/auth-session`);
+          const data = await res.json();
+          return data?.user?.id || null;
         } catch {
           return null;
         }
@@ -199,75 +190,31 @@
 
       async function loadFavorites() {
         if (mode === "account" && userId) {
-          const { data, error } = await supa
-            .from("favorites")
-            .select("artist_id, created_at, artist:artists(id,name,slug,country,region_sub)")
-            .eq("user_id", userId)
-            .order("created_at", { ascending: false });
-
-          if (error) {
-            status.textContent = "Error loading favorites: " + error.message;
+          const res = await fetch(`${API_BASE}/favorites-list`);
+          const data = await res.json();
+          if (!res.ok) {
+            status.textContent = "Error loading favorites: " + (data.error || "Unknown error");
             return [];
           }
-
-          const list = (data || []).map(row => ({
-            slug: row.artist?.slug,
-            name: row.artist?.name,
-            country: row.artist?.country,
-            region: row.artist?.region_sub,
-            artist_id: row.artist_id
-          }));
-
-          const ids = list.map(l => l.artist_id).filter(Boolean);
-          const profileMap = {};
-          if (ids.length) {
-            const { data: pics, error: picErr } = await supa
-              .from("v_artist_profile_image")
-              .select("artist_id, profile_image_url")
-              .in("artist_id", ids);
-            if (!picErr) {
-              (pics || []).forEach(p => {
-                if (p.profile_image_url) profileMap[p.artist_id] = p.profile_image_url;
-              });
-            } else {
-              console.warn("Profile image fetch error:", picErr.message);
-            }
-          }
-
-          return list.map(item => ({ ...item, image_url: profileMap[item.artist_id] }));
+          return data.favorites || [];
         }
 
         const localFavs = loadFavoritesLocal();
         const ids = localFavs.map(f => f.id).filter(Boolean);
         if (!ids.length) return [];
 
-        const { data: artists, error: artistErr } = await supa
-          .from("artists")
-          .select("id,name,slug,country,region_sub")
-          .in("id", ids);
-
-        if (artistErr) {
-          status.textContent = "Error loading local favorites: " + artistErr.message;
+        const res = await fetch(`${API_BASE}/artists-by-ids`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          status.textContent = "Error loading local favorites: " + (data.error || "Unknown error");
           return [];
         }
-
         const artistMap = {};
-        (artists || []).forEach(a => { artistMap[a.id] = a; });
-
-        const profileMap = {};
-        const { data: pics, error: picErr } = await supa
-          .from("v_artist_profile_image")
-          .select("artist_id, profile_image_url")
-          .in("artist_id", ids);
-
-        if (!picErr) {
-          (pics || []).forEach(p => {
-            if (p.profile_image_url) profileMap[p.artist_id] = p.profile_image_url;
-          });
-        } else {
-          console.warn("Profile image fetch error:", picErr.message);
-        }
-
+        (data.artists || []).forEach(a => { artistMap[a.id] = a; });
         return localFavs
           .map(f => {
             const a = artistMap[f.id];
@@ -278,7 +225,7 @@
               country: a.country,
               region: a.region_sub,
               artist_id: a.id,
-              image_url: profileMap[a.id]
+              image_url: a.image_url || null
             };
           })
           .filter(Boolean);
@@ -288,12 +235,11 @@
         if (!artistId) return;
 
         if (mode === "account" && userId) {
-          const { error } = await supa
-            .from("favorites")
-            .delete()
-            .eq("user_id", userId)
-            .eq("artist_id", artistId);
-          if (error) console.error("Remove favorite error:", error.message);
+          await fetch(`${API_BASE}/favorites-remove`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ artist_id: artistId })
+          });
         } else {
           const localFavs = loadFavoritesLocal();
           const updated = localFavs.filter(f => f.id !== artistId);
@@ -303,12 +249,10 @@
 
       async function clearAll() {
         if (mode === "account" && userId) {
-          const { error } = await supa
-            .from("favorites")
-            .delete()
-            .eq("user_id", userId);
-          if (error) {
-            status.textContent = "Error clearing favorites: " + error.message;
+          const res = await fetch(`${API_BASE}/favorites-clear`, { method: "POST" });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            status.textContent = "Error clearing favorites: " + (data.error || "Unknown error");
             return;
           }
         } else {

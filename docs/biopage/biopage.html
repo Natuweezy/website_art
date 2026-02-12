@@ -15,11 +15,6 @@
   <!-- Page CSS -->
   <link rel="stylesheet" href="biopage.css">
 
-  <script>
-    window.SUPABASE_URL = 'https://jhzlxmomyypgtkuwdvzn.supabase.co';
-    window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impoemx4bW9teXlwZ3RrdXdkdnpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzOTgzMzEsImV4cCI6MjA3Mzk3NDMzMX0.IZw6mlxn7Hbue5UlrckhPJeCDNplj-zM1zoiddQGnj0';
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="../theme-toggle.js"></script>
 </head>
 
@@ -175,69 +170,20 @@
         return true;
       };
 
-      if (!window.supabase) return showError('Supabase not available.');
+      const API_BASE = "/.netlify/functions";
 
-      const STORAGE_KEY = "sb-jhzlxmomyypgtkuwdvzn-auth-token";
-      function pickAuthStorage() {
-        try {
-          const k = "sb-check";
-          localStorage.setItem(k, "1");
-          localStorage.removeItem(k);
-          return localStorage;
-        } catch (_) {}
-        try {
-          const k = "sb-check";
-          sessionStorage.setItem(k, "1");
-          sessionStorage.removeItem(k);
-          return sessionStorage;
-        } catch (_) {}
-        return undefined;
+      const bioRes = await fetch(`${API_BASE}/artist-bio?${slug ? `slug=${encodeURIComponent(slug)}` : ""}`);
+      const bioData = await bioRes.json().catch(() => ({}));
+      if (!bioRes.ok) return showError(bioData.error || 'Error loading artist.');
+      if (bioData.redirect) {
+        location.replace(bioData.redirect);
+        return;
       }
 
-      const supa = window.supabase.createClient(
-        window.SUPABASE_URL,
-        window.SUPABASE_ANON_KEY,
-        { auth: { storageKey: STORAGE_KEY, storage: pickAuthStorage(), autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } }
-      );
-
-      let slugToLoad = slug;
-      const { data: { session } } = await supa.auth.getSession();
-      let isSelf = false;
-      if (session?.user) {
-        const { data: selfArtist } = await supa
-          .from('artists')
-          .select('id,slug')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-        if (selfArtist?.slug) {
-          disableLogoLink(logoLink);
-          isSelf = true;
-          if (slug && slug !== selfArtist.slug) {
-            location.replace(`./biopage.html?slug=${encodeURIComponent(selfArtist.slug)}`);
-            return;
-          }
-          slugToLoad = selfArtist.slug;
-        } else if (!slug) {
-          return showError('No artist profile is linked to this account.');
-        }
-      } else if (!slug) {
-        return showError('Missing artist slug in the URL.');
-      }
-
-      // ✅ Pull highlights + socials from DB
-      let artistQuery = supa
-        .from('artists')
-        .select('id,name,slug,bio,country,region_sub,gender,is_published,exhibitions,residencies,press,instagram,tiktok,website');
-      if (isSelf && session?.user) {
-        artistQuery = artistQuery.eq('user_id', session.user.id);
-      } else {
-        artistQuery = artistQuery.eq('slug', slugToLoad).eq('is_published', true);
-      }
-
-      const { data: artist, error } = await artistQuery.maybeSingle();
-
-      if (error) return showError('Error loading artist: ' + error.message);
+      const artist = bioData.artist;
       if (!artist) return showError('Artist not found or unpublished.');
+      const isSelf = !!bioData.is_self;
+      if (isSelf) disableLogoLink(logoLink);
 
       nameEl.textContent = artist.name || 'Untitled artist';
       metaEl.textContent = [artist.country, artist.region_sub, artist.gender].filter(Boolean).join(' • ');
@@ -262,21 +208,15 @@
       galleryLink.href = `../artist_page/artist_page.html?slug=${encodeURIComponent(artist.slug)}${selfParam}`;
       galleryLink.setAttribute('aria-label', `View gallery for ${artist.name}`);
 
-      const { data: works, error: worksErr } = await supa
-        .from('artworks')
-        .select('id,title,description,year,image_url,is_published,created_at')
-        .eq('artist_id', artist.id)
-        .eq('is_published', true)
-        .order('created_at', { ascending: false })
-        .limit(3);
-
-      if (worksErr) {
-        worksEl.innerHTML = `<p class="muted">Error loading artworks: ${worksErr.message}</p>`;
+      const worksRes = await fetch(`${API_BASE}/artist-works?artist_id=${encodeURIComponent(artist.id)}&limit=3`);
+      const worksData = await worksRes.json().catch(() => ({}));
+      if (!worksRes.ok) {
+        worksEl.innerHTML = `<p class="muted">Error loading artworks: ${worksData.error || "Unknown error"}</p>`;
         return;
       }
 
       worksEl.innerHTML = '';
-      const list = works && works.length ? works : [{
+      const list = (worksData.artworks && worksData.artworks.length) ? worksData.artworks : [{
         title: 'No artworks yet',
         description: 'Published pieces will appear here.',
         image_url: '../sample_images/sample_img.png'

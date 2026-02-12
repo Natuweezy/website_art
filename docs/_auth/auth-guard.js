@@ -1,52 +1,20 @@
 // /_auth/auth-guard.js
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
-// 🔧 Your project config
-const SUPABASE_URL = "https://jhzlxmomyypgtkuwdvzn.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impoemx4bW9teXlwZ3RrdXdkdnpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzOTgzMzEsImV4cCI6MjA3Mzk3NDMzMX0.IZw6mlxn7Hbue5UlrckhPJeCDNplj-zM1zoiddQGnj0";
-const STORAGE_KEY = "sb-jhzlxmomyypgtkuwdvzn-auth-token";
-
-// Prefer localStorage, fall back to sessionStorage (Safari private mode blocks localStorage writes).
-function pickAuthStorage() {
-  try {
-    const k = "sb-check";
-    localStorage.setItem(k, "1");
-    localStorage.removeItem(k);
-    return localStorage;
-  } catch (_) {}
-  try {
-    const k = "sb-check";
-    sessionStorage.setItem(k, "1");
-    sessionStorage.removeItem(k);
-    return sessionStorage;
-  } catch (_) {}
-  return undefined;
-}
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storageKey: STORAGE_KEY,
-    storage: pickAuthStorage(),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+const API_BASE = "/.netlify/functions";
 
 export async function getSession() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session || null;
+  const res = await fetch(`${API_BASE}/auth-session`);
+  const data = await res.json().catch(() => ({}));
+  return data || null;
 }
 
 // Require any signed-in user
 export async function requireAuth({ redirect = "../login_page/login.html" } = {}) {
-  const session = await getSession();
-  if (!session?.user) {
+  const data = await getSession();
+  if (!data?.user) {
     location.href = redirect;
     return null;
   }
-  return session;
+  return data;
 }
 
 // Require admin by checking membership in public.admins
@@ -54,40 +22,17 @@ export async function requireAdmin({
   redirectIfNoSession = "../admin/admin.html",
   redirectIfNotAdmin = "../search_page/search_bar.html",
 } = {}) {
-  const session = await requireAuth({ redirect: redirectIfNoSession });
-  if (!session) return null;
-
-  const { data, error } = await supabase
-    .from("admins")
-    .select("user_id")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-
-  if (error || !data) {
+  const data = await requireAuth({ redirect: redirectIfNoSession });
+  if (!data) return null;
+  if (!data.is_admin) {
     location.href = redirectIfNotAdmin;
     return null;
   }
-  return session;
+  return data;
 }
 
 // (Optional) quick helper without redirecting
 export async function isAdmin() {
-  const session = await getSession();
-  if (!session?.user) return false;
-  const { data } = await supabase
-    .from("admins")
-    .select("user_id")
-    .eq("user_id", session.user.id)
-    .maybeSingle();
-  return !!data;
+  const data = await getSession();
+  return !!data?.is_admin;
 }
-
-// Expose for quick debugging in the console
-if (typeof window !== "undefined") {
-  window.__supabase = supabase;
-}
-
-// Auto-redirect to login when signed out
-supabase.auth.onAuthStateChange((evt) => {
-  if (evt === "SIGNED_OUT") location.href = "../login_page/login.html";
-});

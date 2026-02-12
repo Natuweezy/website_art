@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --gap:12px;
@@ -89,54 +88,17 @@
   title="Toggle theme"
 >☀</button>
 <script>
-  // ---- Supabase keys (same as your app) ----
-  window.SUPABASE_URL = 'https://jhzlxmomyypgtkuwdvzn.supabase.co';
-  window.SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impoemx4bW9teXlwZ3RrdXdkdnpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzOTgzMzEsImV4cCI6MjA3Mzk3NDMzMX0.IZw6mlxn7Hbue5UlrckhPJeCDNplj-zM1zoiddQGnj0';
-
-  function pickAuthStorage() {
-    try {
-      const k = "sb-check";
-      localStorage.setItem(k, "1");
-      localStorage.removeItem(k);
-      return localStorage;
-    } catch (_) {}
-    try {
-      const k = "sb-check";
-      sessionStorage.setItem(k, "1");
-      sessionStorage.removeItem(k);
-      return sessionStorage;
-    } catch (_) {}
-    return undefined;
-  }
-
-  const STORAGE_KEY = "sb-jhzlxmomyypgtkuwdvzn-auth-token";
-  const supa = window.supabase.createClient(
-    window.SUPABASE_URL,
-    window.SUPABASE_ANON_KEY,
-    { auth: { storageKey: STORAGE_KEY, storage: pickAuthStorage(), autoRefreshToken: true, persistSession: true, detectSessionInUrl: true } }
-  );
-
-  async function isAdmin(userId){
-    if(!userId) return false;
-    const { data, error } = await supa
-      .from('admins')
-      .select('user_id')
-      .eq('user_id', userId)
-      .maybeSingle();
-    // If there's no row, user is not an admin
-    return !!data && !error;
-  }
+  const API_BASE = "/.netlify/functions";
 
   // If already signed in, only redirect if they're an admin
   (async () => {
-    const { data: { session } } = await supa.auth.getSession();
-    if (session?.user) {
-      const ok = await isAdmin(session.user.id);
-      if (ok) {
+    const res = await fetch(`${API_BASE}/auth-session`);
+    const data = await res.json().catch(() => ({}));
+    if (data?.user) {
+      if (data.is_admin) {
         location.href = 'index.html';
       } else {
-        // Non-admin was signed in: sign out and stay on login with a notice
-        await supa.auth.signOut();
+        await fetch(`${API_BASE}/auth-logout`, { method: "POST" });
         const msg = document.getElementById('msg');
         if (msg) { msg.textContent = 'Access restricted: admin account required.'; msg.className = 'error'; }
       }
@@ -172,20 +134,16 @@
       btn.disabled = true;
       setStatus('Signing in…');
 
-      const { data: signInData, error } = await supa.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const res = await fetch(`${API_BASE}/auth-login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Login failed.");
 
-      // Admin gate: only allow admins through
-      const uid = signInData.user.id;
-      const { data: adminRow, error: adminErr } = await supa
-        .from('admins')
-        .select('user_id')
-        .eq('user_id', uid)
-        .maybeSingle();
-
-      if (adminErr || !adminRow) {
-        // Not an admin: sign out and show message
-        await supa.auth.signOut();
+      if (!data.is_admin) {
+        await fetch(`${API_BASE}/auth-logout`, { method: "POST" });
         setStatus('Access restricted: admin account required.', 'error');
         btn.disabled = false;
         return;
@@ -197,13 +155,6 @@
     } catch (err) {
       setStatus(err?.message || 'Something went wrong.', 'error');
       btn.disabled = false;
-    }
-  });
-
-  // Optional: if user signs out from another tab, keep them on this page
-  supa.auth.onAuthStateChange((evt) => {
-    if (evt === 'SIGNED_OUT') {
-      // no redirect needed; this is the login page
     }
   });
 </script>

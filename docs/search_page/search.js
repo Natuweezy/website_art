@@ -2,50 +2,21 @@
 
 // === Config ===
 const pageSize = 12;
+const API_BASE = "/.netlify/functions";
 
-// Supabase client
-const supabaseUrl = window.SUPABASE_URL;
-const supabaseKey = window.SUPABASE_ANON_KEY;
-const STORAGE_KEY = "sb-jhzlxmomyypgtkuwdvzn-auth-token";
-
-function pickAuthStorage() {
-  try {
-    const k = "sb-check";
-    localStorage.setItem(k, "1");
-    localStorage.removeItem(k);
-    return localStorage;
-  } catch (_) {}
-  try {
-    const k = "sb-check";
-    sessionStorage.setItem(k, "1");
-    sessionStorage.removeItem(k);
-    return sessionStorage;
-  } catch (_) {}
-  return undefined;
-}
-
-if (!window.supabase) {
-  console.error('Supabase CDN not loaded.');
-}
-const supa = window.supabase.createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    storageKey: STORAGE_KEY,
-    storage: pickAuthStorage(),
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+let sessionInfo = null;
 
 // Auth guard (matches your RLS = authenticated only)
 async function ensureSignedIn() {
   try {
-    const { data: { session } } = await supa.auth.getSession();
-    if (!session?.user) {
+    const res = await fetch(`${API_BASE}/auth-session`);
+    const data = await res.json();
+    sessionInfo = data;
+    if (!data?.user) {
       location.href = "../login_page/login.html";
       return false;
     }
-    const label = session.user.email || session.user.id;
+    const label = data.user.email || data.user.id;
     const menuUser = document.getElementById("menuUser");
     if (menuUser) menuUser.textContent = label;
     return true;
@@ -54,10 +25,6 @@ async function ensureSignedIn() {
     return false;
   }
 }
-
-supa.auth.onAuthStateChange((event) => {
-  if (event === "SIGNED_OUT") location.href = "../login_page/login.html";
-});
 
 // DOM references
 const listEl   = document.querySelector(".results-grid");
@@ -99,7 +66,7 @@ if (menuBtn && menu) {
 }
 
 logoutBtn?.addEventListener("click", async () => {
-  await supa.auth.signOut();
+  await fetch(`${API_BASE}/auth-logout`, { method: "POST" });
   location.href = "../login_page/login.html";
 });
 
@@ -115,16 +82,7 @@ function disableLogoLink(linkEl) {
 async function maybeDisableLogoForArtist() {
   const linkEl = document.querySelector("[data-logo-link]");
   if (!linkEl) return;
-  try {
-    const { data: { session } } = await supa.auth.getSession();
-    if (!session?.user) return;
-    const { data: artistRow, error } = await supa
-      .from("artists")
-      .select("id")
-      .eq("user_id", session.user.id)
-      .maybeSingle();
-    if (!error && artistRow) disableLogoLink(linkEl);
-  } catch (_) {}
+  if (sessionInfo?.artist_slug) disableLogoLink(linkEl);
 }
 
 let page = 1;
@@ -191,86 +149,48 @@ function artistCard(artist, imageUrl) {
 
 async function runSearch(q, pageNum = 1) {
   lastQuery = q;
-  const from = (pageNum - 1) * pageSize;
-  const to   = from + pageSize - 1;
   listEl.innerHTML = "";
 
   try {
-    // 1) Fetch artists (published only, matches your RLS)
-    let query = supa.from("artists")
-      .select(
-        "id,name,slug,bio,country,region_sub,gender,medium,style,theme,mood,color_palette,artist_level,format_size",
-        { count: "exact" }
-      )
-      .eq("is_published", true)
-      .order("created_at", { ascending: false })
-      .range(from, to);
+    const params = new URLSearchParams({
+      q: q || "",
+      page: String(pageNum),
+      pageSize: String(pageSize)
+    });
+    if (regionSel?.value)   params.set("region", regionSel.value);
+    if (countrySel?.value)  params.set("country", countrySel.value);
+    if (genderSel?.value)   params.set("gender", genderSel.value);
+    if (mediumSel?.value)   params.set("medium", mediumSel.value);
+    if (styleSel?.value)    params.set("style", styleSel.value);
+    if (themeSel?.value)    params.set("theme", themeSel.value);
+    if (moodSel?.value)     params.set("mood", moodSel.value);
+    if (paletteSel?.value)  params.set("palette", paletteSel.value);
+    if (levelSel?.value)    params.set("level", levelSel.value);
+    if (formatSel?.value)   params.set("format", formatSel.value);
 
-    // Text search
-    if (q && q.trim()) {
-      const t = q.trim();
-      query = query.or(
-        `name.ilike.%${t}%,slug.ilike.%${t}%,country.ilike.%${t}%,region_sub.ilike.%${t}%`
-      );
-    }
-
-    // Existing filters
-    if (regionSel?.value)   query = query.eq("region_sub", regionSel.value);
-    if (countrySel?.value)  query = query.eq("country", countrySel.value);
-    if (genderSel?.value)   query = query.eq("gender", genderSel.value);
-
-    // NEW FILTERS (columns exist in artists table)
-    if (mediumSel?.value)   query = query.eq("medium", mediumSel.value);
-    if (styleSel?.value)    query = query.eq("style", styleSel.value);
-    if (themeSel?.value)    query = query.eq("theme", themeSel.value);
-    if (moodSel?.value)     query = query.eq("mood", moodSel.value);
-    if (paletteSel?.value)  query = query.eq("color_palette", paletteSel.value);
-    if (levelSel?.value)    query = query.eq("artist_level", levelSel.value);
-    if (formatSel?.value)   query = query.eq("format_size", formatSel.value);
-
-    const { data: artists, error: artistsErr, count } = await query;
-    if (artistsErr) {
-      if (
-        artistsErr.code === "PGRST116" ||
-        artistsErr.message?.toLowerCase().includes("permission denied")
-      ) {
+    const res = await fetch(`${API_BASE}/search-artists?${params.toString()}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) {
         location.href = "../login_page/login.html";
         return;
       }
       listEl.innerHTML =
-        `<div class="artist-card" style="padding:15px;">Search error: ${artistsErr.message}</div>`;
+        `<div class="artist-card" style="padding:15px;">Search error: ${data.error || "Unknown error"}</div>`;
       return;
     }
 
-    // 2) Fetch profile image per artist from view
-    const artistIds = (artists || []).map(a => a.id);
-    const profileImageByArtist = {};
+    const artists = data.artists || [];
 
-    if (artistIds.length > 0) {
-      const { data: profiles, error: profileErr } = await supa
-        .from("v_artist_profile_image")
-        .select("artist_id, profile_image_url")
-        .in("artist_id", artistIds);
-
-      if (!profileErr) {
-        for (const row of (profiles || [])) {
-          if (!row.profile_image_url) continue;
-          profileImageByArtist[row.artist_id] = row.profile_image_url;
-        }
-      } else {
-        console.error("profile view error:", profileErr);
-      }
-    }
-
-    // 3) Render cards
+    // Render cards
     listEl.innerHTML = "";
     (artists || []).forEach(a => {
-      const img = profileImageByArtist[a.id] || null;
+      const img = a.profile_image_url || null;
       const card = artistCard(a, img);
       listEl.appendChild(card);
     });
 
-    const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+    const totalPages = Math.max(1, Math.ceil((data.count || 0) / pageSize));
     page = Math.min(pageNum, totalPages);
     pageSpan.textContent = `${page} of ${totalPages}`;
     prevBtn.disabled = page <= 1;
@@ -278,7 +198,7 @@ async function runSearch(q, pageNum = 1) {
 
     // Update live-region for accessibility
     if (liveRegion) {
-      const total = count || 0;
+      const total = data.count || 0;
       liveRegion.textContent =
         `Showing ${artists?.length || 0} artists. Page ${page} of ${totalPages}. Total results: ${total}.`;
     }
