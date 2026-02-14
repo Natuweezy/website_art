@@ -1,11 +1,37 @@
 import { createClient } from "@supabase/supabase-js";
 
+function firstDefined(...keys) {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value) return value;
+  }
+  return null;
+}
+
 export function getEnv() {
-  const url = process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || null;
+  const url = firstDefined(
+    "SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "VITE_SUPABASE_URL",
+    "PUBLIC_SUPABASE_URL"
+  );
+  const anonKey = firstDefined(
+    "SUPABASE_ANON_KEY",
+    "SUPABASE_ANON",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "VITE_SUPABASE_ANON_KEY",
+    "PUBLIC_SUPABASE_ANON_KEY"
+  );
+  const serviceRoleKey = firstDefined(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_KEY",
+    "VITE_SUPABASE_SERVICE_ROLE_KEY",
+    "PUBLIC_SUPABASE_SERVICE_ROLE_KEY"
+  );
   if (!url || !anonKey) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_ANON_KEY env vars.");
+    throw new Error(
+      "Missing Supabase env vars. Set SUPABASE_URL and SUPABASE_ANON_KEY (or NEXT_PUBLIC_/VITE_/PUBLIC_ aliases)."
+    );
   }
   return { url, anonKey, serviceRoleKey };
 }
