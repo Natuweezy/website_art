@@ -145,6 +145,46 @@ create index if not exists idx_favorites_user on public.favorites(user_id);
 create index if not exists idx_favorites_artist on public.favorites(artist_id);
 
 -- ==========================
+-- Artist applications
+-- ==========================
+create table if not exists public.artist_applications (
+  id                    uuid primary key default gen_random_uuid(),
+  submission_type       text not null default 'artist',
+  full_name             text not null,
+  email                 text not null,
+  location              text,
+  instagram             text,
+  website               text,
+  portfolio_link        text,
+  message               text,
+  first_name            text,
+  confirmation_sent     boolean not null default false,
+  notification_sent     boolean not null default false,
+  email_delivery_error  text,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+
+alter table public.artist_applications enable row level security;
+
+drop trigger if exists trg_touch_updated_at_artist_applications on public.artist_applications;
+create trigger trg_touch_updated_at_artist_applications
+before update on public.artist_applications
+for each row execute function public.touch_updated_at();
+
+drop policy if exists "admins full access artist applications" on public.artist_applications;
+
+create policy "admins full access artist applications"
+on public.artist_applications
+for all
+to authenticated
+using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
+with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+
+create index if not exists idx_artist_applications_created_at on public.artist_applications(created_at desc);
+create index if not exists idx_artist_applications_email on public.artist_applications(email);
+
+-- ==========================
 -- Admins table (Option A)
 -- ==========================
 create table if not exists public.admins (

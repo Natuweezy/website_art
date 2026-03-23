@@ -1,5 +1,6 @@
 import { sendEmail, getNotificationAddress, escapeHtml, hasEmailProvider } from "./_lib/email.js";
 import { jsonResponse } from "./_lib/response.js";
+import { createServiceClient } from "./_lib/supabase.js";
 
 function clean(value) {
   return String(value || "").trim();
@@ -107,6 +108,7 @@ export async function handler(event) {
   try {
     const notify = getNotificationAddress();
     const canSendEmail = hasEmailProvider();
+    const supa = createServiceClient();
     const normalizedPayload = {
       ...payload,
       submission_type: submissionType,
@@ -145,31 +147,72 @@ export async function handler(event) {
       });
     }
 
-    const artistEmail = artistSubmissionEmail(normalizedPayload);
-    if (canSendEmail) {
-      await sendEmail({
-        to: notify,
-        subject: artistEmail.subject,
-        text: artistEmail.text,
-        html: artistEmail.html,
-        replyTo: email
-      });
+    const firstName = clean(payload.first_name) || firstNameFrom(name);
+    const { data: insertedApplication, error: insertError } = await supa
+      .from("artist_applications")
+      .insert({
+        submission_type: submissionType,
+        full_name: name,
+        email,
+        location: normalizedPayload.location,
+        instagram: normalizedPayload.instagram || null,
+        website: normalizedPayload.website || null,
+        portfolio_link: normalizedPayload.portfolio_link || null,
+        message: normalizedPayload.message || null,
+        first_name: firstName || null
+      })
+      .select("id")
+      .single();
 
-      const firstName = clean(payload.first_name) || firstNameFrom(name);
-      const confirmation = artistConfirmationEmail(firstName);
-      await sendEmail({
-        to: email,
-        subject: confirmation.subject,
-        text: confirmation.text,
-        html: confirmation.html
-      });
+    if (insertError || !insertedApplication?.id) {
+      return jsonResponse(500, { error: insertError?.message || "Failed to save application." });
     }
+
+    const artistEmail = artistSubmissionEmail(normalizedPayload);
+    let notificationSent = false;
+    let confirmationSent = false;
+    let emailDeliveryError = null;
+
+    if (canSendEmail) {
+      try {
+        await sendEmail({
+          to: notify,
+          subject: artistEmail.subject,
+          text: artistEmail.text,
+          html: artistEmail.html,
+          replyTo: email
+        });
+        notificationSent = true;
+
+        const confirmation = artistConfirmationEmail(firstName);
+        await sendEmail({
+          to: email,
+          subject: confirmation.subject,
+          text: confirmation.text,
+          html: confirmation.html
+        });
+        confirmationSent = true;
+      } catch (err) {
+        emailDeliveryError = err?.message || "Email delivery failed.";
+      }
+    }
+
+    await supa
+      .from("artist_applications")
+      .update({
+        notification_sent: notificationSent,
+        confirmation_sent: confirmationSent,
+        email_delivery_error: emailDeliveryError
+      })
+      .eq("id", insertedApplication.id);
 
     return jsonResponse(200, {
       ok: true,
-      message: canSendEmail
-        ? "Application received. We have emailed you a confirmation."
-        : "Application received. Email delivery is not configured yet, so no confirmation email was sent."
+      message: !canSendEmail
+        ? "Application received. Email delivery is not configured yet, so no confirmation email was sent."
+        : emailDeliveryError
+          ? "Application received, but the confirmation email could not be sent right now."
+          : "Application received. We have emailed you a confirmation."
     });
   } catch (err) {
     return jsonResponse(500, { error: err?.message || "Server error" });
