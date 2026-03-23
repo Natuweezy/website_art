@@ -25,7 +25,7 @@ function fromConfig() {
     "EMAIL_FROM_ADDRESS",
     "RESEND_FROM_EMAIL",
     "SENDGRID_FROM_EMAIL"
-  ) || "Khaya <khayaartss@gmail.com>";
+  ) || null;
 
   const name = firstDefined(
     "EMAIL_FROM_NAME",
@@ -36,9 +36,21 @@ function fromConfig() {
   return { email, name };
 }
 
+function replyToConfig() {
+  return firstDefined(
+    "EMAIL_REPLY_TO",
+    "EMAIL_REPLY_TO_ADDRESS",
+    "RESEND_REPLY_TO_EMAIL",
+    "SENDGRID_REPLY_TO_EMAIL"
+  ) || null;
+}
+
 async function sendViaResend(message) {
   const apiKey = process.env.RESEND_API_KEY;
   const { email } = fromConfig();
+  if (!email) {
+    throw new Error("Missing EMAIL_FROM env var.");
+  }
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -51,7 +63,7 @@ async function sendViaResend(message) {
       subject: message.subject,
       text: message.text,
       html: message.html,
-      reply_to: message.replyTo || undefined
+      reply_to: message.replyTo || replyToConfig() || undefined
     })
   });
 
@@ -64,6 +76,9 @@ async function sendViaResend(message) {
 async function sendViaSendgrid(message) {
   const apiKey = process.env.SENDGRID_API_KEY;
   const { email, name } = fromConfig();
+  if (!email) {
+    throw new Error("Missing EMAIL_FROM env var.");
+  }
   const fromEmail = email.includes("<")
     ? email.match(/<([^>]+)>/)?.[1] || email
     : email;
@@ -90,7 +105,7 @@ async function sendViaSendgrid(message) {
       },
       subject: message.subject,
       content: contents,
-      reply_to: message.replyTo ? { email: message.replyTo } : undefined
+      reply_to: (message.replyTo || replyToConfig()) ? { email: message.replyTo || replyToConfig() } : undefined
     })
   });
 
@@ -132,6 +147,10 @@ export function getConfiguredProvider() {
   if (process.env.SENDGRID_API_KEY) return "sendgrid";
   if (firstDefined("EMAIL_WEBHOOK_URL", "EMAIL_API_URL")) return "webhook";
   return null;
+}
+
+export function hasEmailProvider() {
+  return !!getConfiguredProvider();
 }
 
 export async function sendEmail(message) {

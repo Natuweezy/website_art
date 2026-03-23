@@ -1,4 +1,4 @@
-import { sendEmail, getNotificationAddress, escapeHtml } from "./_lib/email.js";
+import { sendEmail, getNotificationAddress, escapeHtml, hasEmailProvider } from "./_lib/email.js";
 import { jsonResponse } from "./_lib/response.js";
 
 function clean(value) {
@@ -106,6 +106,7 @@ export async function handler(event) {
 
   try {
     const notify = getNotificationAddress();
+    const canSendEmail = hasEmailProvider();
     const normalizedPayload = {
       ...payload,
       submission_type: submissionType,
@@ -121,14 +122,21 @@ export async function handler(event) {
 
     if (submissionType === "gallery") {
       const galleryEmail = gallerySubmissionEmail(normalizedPayload);
-      await sendEmail({
-        to: notify,
-        subject: galleryEmail.subject,
-        text: galleryEmail.text,
-        html: galleryEmail.html,
-        replyTo: email
+      if (canSendEmail) {
+        await sendEmail({
+          to: notify,
+          subject: galleryEmail.subject,
+          text: galleryEmail.text,
+          html: galleryEmail.html,
+          replyTo: email
+        });
+      }
+      return jsonResponse(200, {
+        ok: true,
+        message: canSendEmail
+          ? "Gallery request received."
+          : "Gallery request received. Email delivery is not configured yet."
       });
-      return jsonResponse(200, { ok: true, message: "Gallery request received." });
     }
 
     if (!name || !normalizedPayload.location || !normalizedPayload.instagram || !normalizedPayload.portfolio_link) {
@@ -138,26 +146,30 @@ export async function handler(event) {
     }
 
     const artistEmail = artistSubmissionEmail(normalizedPayload);
-    await sendEmail({
-      to: notify,
-      subject: artistEmail.subject,
-      text: artistEmail.text,
-      html: artistEmail.html,
-      replyTo: email
-    });
+    if (canSendEmail) {
+      await sendEmail({
+        to: notify,
+        subject: artistEmail.subject,
+        text: artistEmail.text,
+        html: artistEmail.html,
+        replyTo: email
+      });
 
-    const firstName = clean(payload.first_name) || firstNameFrom(name);
-    const confirmation = artistConfirmationEmail(firstName);
-    await sendEmail({
-      to: email,
-      subject: confirmation.subject,
-      text: confirmation.text,
-      html: confirmation.html
-    });
+      const firstName = clean(payload.first_name) || firstNameFrom(name);
+      const confirmation = artistConfirmationEmail(firstName);
+      await sendEmail({
+        to: email,
+        subject: confirmation.subject,
+        text: confirmation.text,
+        html: confirmation.html
+      });
+    }
 
     return jsonResponse(200, {
       ok: true,
-      message: "Application received. We have emailed you a confirmation."
+      message: canSendEmail
+        ? "Application received. We have emailed you a confirmation."
+        : "Application received. Email delivery is not configured yet, so no confirmation email was sent."
     });
   } catch (err) {
     return jsonResponse(500, { error: err?.message || "Server error" });
