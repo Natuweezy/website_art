@@ -33,7 +33,6 @@ const pageSpan = document.querySelector(".pagination span");
 const prevBtn  = document.querySelector(".pagination button:nth-child(1)");
 const nextBtn  = document.querySelector(".pagination button:nth-child(3)");
 const regionSel   = document.getElementById("filterRegion");
-const countrySel  = document.getElementById("filterCountry");
 const genderSel   = document.getElementById("filterGender");
 const liveRegion  = document.getElementById("resultsStatus");
 const menuBtn = document.getElementById("profileMenuBtn");
@@ -44,10 +43,7 @@ const logoutBtn = document.getElementById("logoutBtn");
 const mediumSel   = document.getElementById("filterMedium");    // Medium / Art Form
 const styleSel    = document.getElementById("filterStyle");     // Style / Aesthetic
 const themeSel    = document.getElementById("filterTheme");     // Themes / Content
-const moodSel     = document.getElementById("filterMood");      // Mood
 const paletteSel  = document.getElementById("filterPalette");   // Color Palette
-const levelSel    = document.getElementById("filterLevel");     // Artist Level
-const formatSel   = document.getElementById("filterFormat");    // Format / Size
 const filtersPanel = document.getElementById("filtersPanel");
 const filtersToggle = document.getElementById("toggleFilters");
 
@@ -100,24 +96,6 @@ const REGION_COUNTRIES = {
   "South America": ["Argentina","Bolivia","Brazil","Chile","Colombia","Ecuador","Guyana","Paraguay","Peru","Suriname","Uruguay","Venezuela"]
 };
 
-function resetCountrySelect() {
-  if (!countrySel) return;
-  countrySel.innerHTML = `<option value="">Country</option>`;
-  countrySel.disabled = true;
-}
-
-function populateCountries(region) {
-  resetCountrySelect();
-  if (!region || !REGION_COUNTRIES[region] || !countrySel) return;
-  REGION_COUNTRIES[region].forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c;
-    opt.textContent = c;
-    countrySel.appendChild(opt);
-  });
-  countrySel.disabled = false;
-}
-
 const PLACEHOLDER = "../sample_images/sample_img.png";
 
 // Static artist card (no favorites icon)
@@ -158,15 +136,11 @@ async function runSearch(q, pageNum = 1) {
       pageSize: String(pageSize)
     });
     if (regionSel?.value)   params.set("region", regionSel.value);
-    if (countrySel?.value)  params.set("country", countrySel.value);
     if (genderSel?.value)   params.set("gender", genderSel.value);
     if (mediumSel?.value)   params.set("medium", mediumSel.value);
     if (styleSel?.value)    params.set("style", styleSel.value);
     if (themeSel?.value)    params.set("theme", themeSel.value);
-    if (moodSel?.value)     params.set("mood", moodSel.value);
     if (paletteSel?.value)  params.set("palette", paletteSel.value);
-    if (levelSel?.value)    params.set("level", levelSel.value);
-    if (formatSel?.value)   params.set("format", formatSel.value);
 
     const res = await fetch(`${API_BASE}/search-artists?${params.toString()}`);
     const data = await res.json().catch(() => ({}));
@@ -222,20 +196,15 @@ inputEl.addEventListener(
   debounce(() => runSearch(inputEl.value, 1), 250)
 );
 regionSel?.addEventListener("change", () => {
-  populateCountries(regionSel.value);
   runSearch(inputEl.value, 1);
 });
-countrySel?.addEventListener("change", () => runSearch(inputEl.value, 1));
 genderSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
 
 // NEW FILTER LISTENERS
 mediumSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
 styleSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
 themeSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
-moodSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
 paletteSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
-levelSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
-formatSel?.addEventListener("change", () => runSearch(inputEl.value, 1));
 
 prevBtn.addEventListener("click", () =>
   runSearch(lastQuery, Math.max(1, page - 1))
@@ -253,6 +222,5 @@ filtersToggle?.addEventListener("click", () => {
   const ok = await ensureSignedIn();
   if (!ok) return;
   await maybeDisableLogoForArtist();
-  resetCountrySelect();
   runSearch("", 1);
 })();
