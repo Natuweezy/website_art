@@ -141,10 +141,6 @@ body[data-theme="light"]{
   line-height: 1;
   display: inline-flex;
   align-items: center;
-  margin-left: -1.5cm;
-}
-@media (max-width: 640px){
-  .page-title{ margin-left: 0; }
 }
 
 /* Logo size */

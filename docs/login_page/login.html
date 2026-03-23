@@ -9,7 +9,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./login_styles.css" />
 </head>
-<body>
+<body data-theme="light">
+<header class="page-header" role="banner">
+  <div class="header-inner">
+    <a class="brand" href="../index.html" aria-label="Khaya home">
+      <img src="../logos/KH gold.png" alt="Khaya" width="200" height="44" loading="eager" />
+    </a>
+    <nav aria-label="Site navigation">
+      <button class="btn btn-icon" id="theme-toggle" type="button" aria-label="Switch to dark mode" title="Toggle theme">
+        <span id="theme-icon" aria-hidden="true">☀</span>
+      </button>
+    </nav>
+  </div>
+</header>
 <main class="login-page" aria-label="Login">
 <div class="login-card" role="form" aria-labelledby="khayaTitle">
 <img src="../logos/KH gold.png" alt="Khaya logo" class="login-logo" width="320" height="100" />

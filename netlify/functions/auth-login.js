@@ -4,7 +4,15 @@ import { loginCookies } from "./_lib/session.js";
 
 export async function handler(event) {
   if (event.httpMethod !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" });
+    return {
+      ...jsonResponse(405, {
+        error: `Method not allowed for auth-login. Received ${event.httpMethod || "unknown"}, expected POST.`
+      }),
+      headers: {
+        "Content-Type": "application/json",
+        Allow: "POST"
+      }
+    };
   }
 
   let payload = {};
