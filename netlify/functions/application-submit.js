@@ -139,9 +139,9 @@ export async function handler(event) {
       });
     }
 
-    if (!name || !normalizedPayload.location || !normalizedPayload.instagram || !normalizedPayload.portfolio_link) {
+    if (!name || !normalizedPayload.location) {
       return jsonResponse(400, {
-        error: "Name, location, Instagram, and portfolio link are required for artist applications."
+        error: "Name and location are required for artist applications."
       });
     }
 

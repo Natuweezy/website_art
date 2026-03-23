@@ -754,7 +754,7 @@
         message: String(formData.get('message') || '').trim()
       };
 
-      if (!payload.name || !payload.email || !payload.location || !payload.instagram || !payload.portfolio_link) {
+      if (!payload.name || !payload.email || !payload.location) {
         setArtistStatus('Complete the required fields before submitting.', 'error');
         return;
       }
