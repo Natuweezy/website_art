@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy Policy — Khaya</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070708;
+      --panel: #0f1014;
+      --ink: #f2c34a;
+      --muted: #c99b33;
+      --line: #1b1c20;
+    }
+    body[data-theme="light"] {
+      --bg: #f7f6f2;
+      --panel: #ffffff;
+      --ink: #1c1d22;
+      --muted: #4f5058;
+      --line: #d9d5c8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      display: flex;
+      flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 28px clamp(18px, 4vw, 32px) 48px;
+      width: 100%;
+    }
+    h1 { margin: 0 0 12px; font-size: clamp(1.8rem, 1.4rem + 1vw, 2.4rem); }
+    h2 { font-size: 1.05rem; margin: 0 0 8px; }
+    p, li { margin: 0 0 10px; color: var(--muted); line-height: 1.7; }
+    ul { padding-left: 20px; }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 18px;
+      margin-top: 16px;
+    }
+    a { color: var(--ink); }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .theme-btn {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      cursor: pointer;
+      transition: background .2s ease, color .2s ease, border-color .2s ease, transform .05s ease;
+    }
+    .theme-btn:hover { background: rgba(0,0,0,.05); }
+    .theme-btn:active { transform: translateY(1px); }
+    .todo-banner { border-color: #b3441f; background: rgba(179,68,31,0.12); }
+    .todo-banner p, .todo-banner li { color: var(--ink); }
+    .todo { color: #ff8c5a; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Privacy Policy</h1>
+      <button
+        class="theme-btn"
+        type="button"
+        data-theme-toggle
+        aria-label="Toggle theme"
+        title="Toggle theme"
+      >☀</button>
+    </header>
+
+    <div class="panel todo-banner">
+      <p><strong>⚠ Open items before this page can go live:</strong></p>
+      <ul>
+        <li><span class="todo">Sub-processors:</span> confirm whether formal Art. 28 GDPR data processing agreements (Auftragsverarbeitungsverträge) are in place with Supabase and the transactional email provider, and confirm which region(s) they process/store data in. This page assumes EU/adequate-country processing but that has not been verified.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <p>This policy explains what personal data Khaya (khayarts.com) collects, why, and what rights you have under the EU General Data Protection Regulation (GDPR). The data controller is the person named in the <a href="./impressum.html">Impressum</a>; contact <a href="mailto:khayaartss@gmail.com">khayaartss@gmail.com</a> for any privacy request.</p>
+    </div>
+
+    <div class="panel">
+      <h2>1. What we collect</h2>
+      <ul>
+        <li><strong>Artist applications:</strong> full name, email address, location, and optionally Instagram handle, website, portfolio link, and a free-text message — submitted through the application form on the homepage.</li>
+        <li><strong>Accounts:</strong> email address and password for artists, galleries, and admins who sign in. Passwords are handled by our authentication provider (Supabase Auth) and are not stored by us in plain text.</li>
+        <li><strong>Published artist profiles:</strong> for accepted artists, the name, bio, images, and links that make up their public profile.</li>
+        <li><strong>Favorites:</strong> if you're signed in, which artist profiles you've marked as a favorite.</li>
+        <li><strong>Session cookies:</strong> strictly-necessary cookies that keep you signed in (see Section 5).</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>2. Why we process it, and the legal basis</h2>
+      <ul>
+        <li><strong>Reviewing artist applications</strong> — legal basis: Art. 6(1)(b) GDPR (steps prior to entering into a contract, at your request).</li>
+        <li><strong>Operating artist/gallery/admin accounts and the platform</strong> — legal basis: Art. 6(1)(b) GDPR (performance of the contract with you as a registered user).</li>
+        <li><strong>Publishing an accepted artist's profile so galleries can discover it</strong> — legal basis: Art. 6(1)(b) GDPR (this is the core service you sign up for as an accepted artist).</li>
+        <li><strong>Keeping you signed in via session cookies</strong> — legal basis: Art. 6(1)(f) GDPR (legitimate interest in providing a working, secure login), or Art. 6(1)(b) where you've asked to be signed in.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>3. Who sees your data</h2>
+      <p><strong>Applications:</strong> raw application data (your name, email, location, links, message) is visible only to Khaya admins reviewing submissions. It is not shared with galleries.</p>
+      <p><strong>Published profiles:</strong> once an artist's application is accepted and their profile is published, that profile (name, images, bio, links) becomes publicly visible and searchable on the platform — including to galleries, which is the intended purpose of publishing it.</p>
+      <p><strong>Service providers:</strong> we use Supabase (database, authentication, file storage) and a transactional email provider (to send you application-confirmation emails) as data processors. See the open item above regarding formal processing agreements.</p>
+      <p>We do not sell personal data, and we do not use any analytics or advertising trackers on this site (see Section 5).</p>
+    </div>
+
+    <div class="panel">
+      <h2>4. How long we keep it</h2>
+      <ul>
+        <li><strong>Rejected or unanswered artist applications:</strong> deleted no later than 6 months after a decision is made (or 6 months after submission if no decision is recorded).</li>
+        <li><strong>Accepted/published artist profiles and accounts:</strong> retained for as long as the profile or account remains active on the platform. If you'd like your account or profile removed, contact us and we will delete it.</li>
+        <li><strong>Favorites:</strong> retained for as long as your account exists.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h2>5. Cookies</h2>
+      <p>Khaya sets one type of cookie: short-lived, <strong>HttpOnly</strong> session cookies used solely to keep you signed in after login. These are strictly necessary for the site to function and do not require consent under the ePrivacy rules. Khaya does not currently use analytics, advertising, or tracking cookies of any kind — if that changes, this policy and a consent mechanism will be added before any such cookies are set.</p>
+    </div>
+
+    <div class="panel">
+      <h2>6. Your rights</h2>
+      <p>Under the GDPR, you have the right to:</p>
+      <ul>
+        <li>request access to the personal data we hold about you (Art. 15),</li>
+        <li>request correction of inaccurate data (Art. 16),</li>
+        <li>request deletion of your data (Art. 17),</li>
+        <li>restrict or object to certain processing (Art. 18, 21),</li>
+        <li>receive a copy of your data in a portable format (Art. 20), and</li>
+        <li>lodge a complaint with a data protection supervisory authority.</li>
+      </ul>
+      <p>To exercise any of these rights, email <a href="mailto:khayaartss@gmail.com">khayaartss@gmail.com</a>.</p>
+    </div>
+  </div>
+  <script defer src="./theme-toggle.js"></script>
+  <script defer src="./legal-footer.js"></script>
+</body>
+</html>
