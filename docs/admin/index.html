@@ -809,6 +809,14 @@
       const file = artImage.files[0];
       let imagePayload = null;
       if (file) {
+        // Kept in sync with netlify/functions/_lib/imageValidation.js —
+        // base64 inflates this by ~1/3, and Netlify's synchronous function
+        // payload limit is ~6MB, so anything larger risks an opaque 413
+        // from Netlify's edge instead of this clear message.
+        const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+        if (file.size > MAX_IMAGE_BYTES) {
+          throw new Error(`Image is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Max size is 4MB.`);
+        }
         const base64 = await readFileAsBase64(file);
         imagePayload = {
           data: base64,

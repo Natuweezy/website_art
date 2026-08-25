@@ -3,7 +3,11 @@
 // mislabeled SVG/HTML file can't be stored with an executable content type
 // in the (public) artworks bucket.
 
-export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+// Base64 inflates raw bytes by ~1/3, and Netlify's synchronous function
+// payload limit is ~6MB — a raw file much above 4MB risks a raw 413 from
+// Netlify's edge before this function (or its own size check) ever runs.
+// Kept in sync with the client-side check in docs/admin/index.html.
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB
 
 const SIGNATURES = [
   { mime: "image/png", bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
