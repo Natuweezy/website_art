@@ -17,13 +17,16 @@ export async function handler(event) {
     const to = from + pageSize;
 
     const supa = createSupabaseClient(session.accessToken);
+    // Unlike the public search-artists.js, the admin list intentionally
+    // includes unpublished (draft) artists — publishing is now a separate,
+    // explicit step (admin-artist-set-published.js), so admins need to be
+    // able to find and act on drafts here.
     let query = supa
       .from("artists")
       .select(
-        "id,name,slug,region_sub,country,bio,gender,medium,style,theme,mood,color_palette,artist_level,format_size,exhibitions,residencies,press,instagram,tiktok,website",
+        "id,name,slug,region_sub,country,bio,gender,medium,style,theme,mood,color_palette,artist_level,format_size,exhibitions,residencies,press,instagram,tiktok,website,is_published",
         { count: "exact" }
-      )
-      .eq("is_published", true);
+      );
 
     if (term) query = query.or(`name.ilike.%${term}%,slug.ilike.%${term}%`);
 

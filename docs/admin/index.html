@@ -282,7 +282,7 @@
 
     <table id="artistsTable">
       <thead>
-        <tr><th>Name</th><th>Slug</th><th>Region</th><th>Country</th><th class="actions">Actions</th></tr>
+        <tr><th>Name</th><th>Slug</th><th>Region</th><th>Country</th><th>Status</th><th class="actions">Actions</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -534,6 +534,10 @@
         artistAuthPasswordEl.value = '';
       }
 
+      // is_published is intentionally left out here — saving/editing an
+      // artist must never change whether they're publicly visible. New
+      // artists default to unpublished (db default), and publishing is a
+      // separate, explicit action (see the Publish/Unpublish button below).
       const payload = {
         name,
         slug,
@@ -541,7 +545,6 @@
         gender: genderEl.value || null,
         region_sub: normalizeRegionLabel(regionEl.value) || null,
         country: countryEl.value || null,
-        is_published: true,
 
         // extended metadata
         medium:        artistMediumEl.value  || null,
@@ -619,6 +622,22 @@
     }
   }
 
+  async function setArtistPublished(artist, nextPublished){
+    try{
+      await requireAuth();
+      const res = await fetch(`${API_BASE}/admin-artist-set-published`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: artist.id, is_published: nextPublished })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Update failed.');
+      await loadArtistsList(artistPage);
+    }catch(err){
+      alert('Publish status update failed: ' + (err?.message || err));
+    }
+  }
+
   async function loadArtistsList(page = 1){
     const term = (artistSearch.value || '').trim();
     const params = new URLSearchParams({
@@ -636,17 +655,21 @@
     artistsTableBody.innerHTML = '';
     rows.forEach(a => {
       const tr = document.createElement('tr');
+      const isPublished = a.is_published === true;
       tr.innerHTML = `
         <td>${a.name || ''}</td>
         <td>${a.slug || ''}</td>
         <td>${a.region_sub || ''}</td>
         <td>${a.country || ''}</td>
+        <td>${isPublished ? 'Published' : 'Draft'}</td>
         <td class="actions">
           <button type="button" data-action="edit" class="btn-secondary" data-id="${a.id}">Edit</button>
+          <button type="button" data-action="toggle-publish" class="btn-secondary" data-id="${a.id}">${isPublished ? 'Unpublish' : 'Publish'}</button>
           <button type="button" data-action="delete" class="btn-danger" data-id="${a.id}">Delete</button>
         </td>
       `;
       tr.querySelector('[data-action="edit"]').onclick = () => setArtistModeEdit(a);
+      tr.querySelector('[data-action="toggle-publish"]').onclick = () => setArtistPublished(a, !isPublished);
       tr.querySelector('[data-action="delete"]').onclick = () => deleteArtist(a.id);
       artistsTableBody.appendChild(tr);
     });

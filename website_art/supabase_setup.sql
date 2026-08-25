@@ -22,7 +22,10 @@ create table if not exists public.artists (
   country         text,
   region_sub      text,
   gender          text,
-  is_published    boolean not null default true,
+  -- Fail-safe: new artists start unpublished. Publishing is a separate,
+  -- explicit admin action (admin-artist-set-published.js) rather than a
+  -- side effect of saving/editing artist details.
+  is_published    boolean not null default false,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
