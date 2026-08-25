@@ -1,8 +1,10 @@
 import { createSupabaseClient } from "./_lib/supabase.js";
 import { jsonResponse } from "./_lib/response.js";
+import { getClientIp, checkRateLimit, rateLimitMessage } from "./_lib/rateLimit.js";
 
 const SITE_URL = "https://khayarts.com";
 const GENERIC_MESSAGE = "If that email address is registered, we've sent a password reset link to it.";
+const IP_LIMIT = { maxAttempts: 10, windowSeconds: 60 * 60, lockSeconds: 60 * 60 };
 
 export async function handler(event) {
   if (event.httpMethod !== "POST") {
@@ -19,6 +21,11 @@ export async function handler(event) {
   const email = (payload.email || "").trim();
   if (!email) {
     return jsonResponse(400, { error: "Email is required" });
+  }
+
+  const ipLimit = await checkRateLimit(`forgot-password:ip:${getClientIp(event)}`, IP_LIMIT);
+  if (!ipLimit.allowed) {
+    return jsonResponse(429, { error: rateLimitMessage(ipLimit.retryAfterSeconds) });
   }
 
   try {

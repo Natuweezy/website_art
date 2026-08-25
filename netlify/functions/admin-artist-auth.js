@@ -1,6 +1,9 @@
 import { createSupabaseClient } from "./_lib/supabase.js";
 import { jsonResponse } from "./_lib/response.js";
 import { requireAdmin } from "./_lib/authz.js";
+import { getClientIp, checkRateLimit, clearRateLimit, rateLimitMessage } from "./_lib/rateLimit.js";
+
+const IP_LIMIT = { maxAttempts: 10, windowSeconds: 15 * 60, lockSeconds: 15 * 60 };
 
 export async function handler(event) {
   if (event.httpMethod !== "POST") {
@@ -14,6 +17,12 @@ export async function handler(event) {
     const password = body.password || "";
     if (!email || !password) {
       return jsonResponse(400, { error: "Email and password are required" }, session.setCookies);
+    }
+
+    const ipKey = `admin-artist-auth:ip:${getClientIp(event)}`;
+    const ipLimit = await checkRateLimit(ipKey, IP_LIMIT);
+    if (!ipLimit.allowed) {
+      return jsonResponse(429, { error: rateLimitMessage(ipLimit.retryAfterSeconds) }, session.setCookies);
     }
 
     const supa = createSupabaseClient();
@@ -39,6 +48,7 @@ export async function handler(event) {
       return jsonResponse(400, { error: "Unable to resolve user id" }, session.setCookies);
     }
 
+    await clearRateLimit(ipKey);
     return jsonResponse(200, { user_id: userId }, session.setCookies);
   } catch (err) {
     return jsonResponse(err.statusCode || 500, { error: err.message || "Server error" }, err.setCookies || []);

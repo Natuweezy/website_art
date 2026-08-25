@@ -465,3 +465,19 @@ returns text language sql immutable as $$
            '[^a-z0-9]+', '-', 'g'
          )
 $$;
+
+-- =======================
+-- Auth rate limiting
+-- Shared counter table for auth-login / admin-artist-auth /
+-- auth-forgot-password. RLS is enabled with no policies, so only the
+-- service-role key (used server-side by netlify/functions/_lib/rateLimit.js)
+-- can read or write it.
+-- =======================
+create table if not exists public.auth_rate_limits (
+  key               text primary key,
+  attempt_count     int not null default 1,
+  first_attempt_at  timestamptz not null default now(),
+  locked_until      timestamptz
+);
+
+alter table public.auth_rate_limits enable row level security;
