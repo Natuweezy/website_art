@@ -2,7 +2,7 @@ import { createSupabaseClient, createServiceClient } from "./_lib/supabase.js";
 import { jsonResponse } from "./_lib/response.js";
 import { requireAdmin } from "./_lib/authz.js";
 import { storageKeyFromPublicUrl } from "./_lib/storage.js";
-import { MAX_IMAGE_BYTES, detectImageMimeType, isValidUuid } from "./_lib/imageValidation.js";
+import { MAX_IMAGE_BYTES, detectImageMimeType, isHeic, isValidUuid } from "./_lib/imageValidation.js";
 
 function slugify(s) {
   return (s || "")
@@ -64,6 +64,13 @@ export async function handler(event) {
       // with an executable content type.
       const detectedType = detectImageMimeType(buffer);
       if (!detectedType) {
+        if (isHeic(buffer)) {
+          return jsonResponse(
+            400,
+            { error: "HEIC/HEIF photos (the iPhone default format) aren't supported yet. Please convert to JPEG or PNG before uploading." },
+            session.setCookies
+          );
+        }
         return jsonResponse(400, { error: "Unsupported or invalid image file. Use JPEG, PNG, GIF, or WEBP." }, session.setCookies);
       }
 

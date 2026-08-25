@@ -28,6 +28,22 @@ export function detectImageMimeType(buffer) {
   return null;
 }
 
+const HEIC_BRANDS = ["heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs", "mif1", "msf1"];
+
+// HEIC/HEIF isn't in the accepted-signature list above and isn't converted —
+// most browsers other than Safari can't render it in an <img> tag, so
+// accepting the raw bytes would silently produce broken images on the live
+// site rather than a clear error at upload time. This only exists to give a
+// precise message for the common case (iPhone's default photo format),
+// not to accept the file.
+export function isHeic(buffer) {
+  if (buffer.length < 12) return false;
+  const isFtyp = buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70;
+  if (!isFtyp) return false;
+  const brand = buffer.subarray(8, 12).toString("ascii");
+  return HEIC_BRANDS.includes(brand);
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isValidUuid(value) {
