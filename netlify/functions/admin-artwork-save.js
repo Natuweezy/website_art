@@ -2,6 +2,7 @@ import { createSupabaseClient, createServiceClient } from "./_lib/supabase.js";
 import { jsonResponse } from "./_lib/response.js";
 import { requireAdmin } from "./_lib/authz.js";
 import { storageKeyFromPublicUrl } from "./_lib/storage.js";
+import { MAX_IMAGE_BYTES, detectImageMimeType, isValidUuid } from "./_lib/imageValidation.js";
 
 function slugify(s) {
   return (s || "")
@@ -31,6 +32,9 @@ export async function handler(event) {
     if (!artistId || !title) {
       return jsonResponse(400, { error: "artist_id and title are required" }, session.setCookies);
     }
+    if (!isValidUuid(artistId)) {
+      return jsonResponse(400, { error: "artist_id is not a valid id" }, session.setCookies);
+    }
 
     const supa = createSupabaseClient(session.accessToken);
     const service = createServiceClient();
@@ -47,12 +51,26 @@ export async function handler(event) {
       existingImageUrl = existing?.image_url || null;
     }
 
-    if (image && image.data && image.content_type) {
-      const key = `images/${artistId}/${Date.now()}-${slugify(title)}`;
+    if (image && image.data) {
       const buffer = Buffer.from(image.data, "base64");
+
+      if (buffer.length > MAX_IMAGE_BYTES) {
+        return jsonResponse(400, { error: "Image is too large (max 5MB)." }, session.setCookies);
+      }
+
+      // The client-declared content_type is never trusted here — the actual
+      // file bytes are sniffed, and that detected type is what gets stored,
+      // so a mislabeled SVG/HTML upload can't land in the public bucket
+      // with an executable content type.
+      const detectedType = detectImageMimeType(buffer);
+      if (!detectedType) {
+        return jsonResponse(400, { error: "Unsupported or invalid image file. Use JPEG, PNG, GIF, or WEBP." }, session.setCookies);
+      }
+
+      const key = `images/${artistId}/${Date.now()}-${slugify(title)}`;
       const { error: uploadErr } = await service.storage
         .from(bucket)
-        .upload(key, buffer, { contentType: image.content_type, upsert: true });
+        .upload(key, buffer, { contentType: detectedType, upsert: true });
       if (uploadErr) {
         return jsonResponse(400, { error: uploadErr.message }, session.setCookies);
       }
